@@ -32,6 +32,9 @@ upload/
 
 /test*.py
 /test_main.http
+/tests
+/pytest.ini
+
 
 # Cursor 本地会话（按 AGENTS.md 约定）
 .cursor/conversations/

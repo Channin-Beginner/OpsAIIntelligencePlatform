@@ -95,8 +95,8 @@
 
 | 端点 / 能力 | 计划阶段 |
 |-------------|----------|
-| `GET /api/v1/alerts` 告警列表 | 1.B 实现时可增补 OpenAPI patch |
-| `POST /api/v1/auth/login` | 1.B |
+| `GET /api/v1/alerts` 告警列表 | ✅ 1.B 已增补 |
+| `POST /api/v1/auth/login` | ✅ 1.B 已增补 |
 | `POST /api/v1/incidents/{id}/rca` | 三 |
 | Webhook HMAC 签名校验 | 二前评估 |
 

@@ -5,8 +5,8 @@ info:
     运维智脑平台后端契约（ops-api）。
 
     - 响应统一包装为 CommonResult（对齐 EcomAI）
-    - 阶段一范围：Health、Alertmanager Webhook、Incident CRUD、Timeline
-    - 认证：JWT Bearer（阶段一 1.B 实现；Webhook 端点无需认证）
+    - 阶段一范围：Health、Auth、Alertmanager Webhook、Alert 列表、Incident CRUD、Timeline
+    - 认证：JWT Bearer（`POST /api/v1/auth/login`）；Webhook 端点无需认证
   version: 0.1.0-phase1
   contact:
     name: OpsAI Team
@@ -20,6 +20,10 @@ tags:
     description: 健康检查
   - name: Webhooks
     description: 外部系统回调（Alertmanager）
+  - name: Auth
+    description: JWT 登录
+  - name: Alerts
+    description: 告警事件列表（Alert Center）
   - name: Incidents
     description: 故障管理（Dispatch 思路）
   - name: Timeline
@@ -90,6 +94,75 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CommonResultError'
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: 用户登录（JWT）
+      operationId: postAuthLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultLogin'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/alerts:
+    get:
+      tags: [Alerts]
+      summary: 告警事件列表（分页 + 筛选）
+      operationId: listAlerts
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/AlertStatus'
+        - name: severity
+          in: query
+          schema:
+            $ref: '#/components/schemas/Severity'
+        - name: source
+          in: query
+          schema:
+            type: string
+          example: alertmanager
+        - name: service
+          in: query
+          schema:
+            type: string
+          example: ecom-api-portal
+        - name: fingerprint
+          in: query
+          description: 精确匹配 fingerprint
+          schema:
+            type: string
+        - name: keyword
+          in: query
+          description: 标题模糊搜索
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 分页列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultAlertPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /api/v1/incidents:
     get:
@@ -790,3 +863,71 @@ components:
           type: string
         data:
           $ref: '#/components/schemas/TimelineEvent'
+
+    # ── Auth ──────────────────────────────────────────────────
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          example: admin
+        password:
+          type: string
+          format: password
+          example: OpsAI@2025
+
+    LoginData:
+      type: object
+      required: [access_token, token_type, user_id, username, display_name, role]
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          example: bearer
+        user_id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        display_name:
+          type: string
+        role:
+          type: string
+          enum: [admin, operator]
+
+    CommonResultLogin:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/LoginData'
+
+    # ── Alert 列表 ────────────────────────────────────────────
+    AlertPage:
+      type: object
+      required: [items, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertEventSummary'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+
+    CommonResultAlertPage:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/AlertPage'

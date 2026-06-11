@@ -1,0 +1,43 @@
+# EcomAI ecom-api 告警规则（依赖 prometheus-fastapi-instrumentator 暴露的指标）
+# 指标名以 docs/metrics_dictionary.md 为准
+
+groups:
+  - name: ecom-api
+    rules:
+      - alert: EcomApiDown
+        expr: up{job=~"ecom-api-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} 不可达（up==0）"
+          description: "Prometheus 无法抓取 {{ $labels.job }} 的 /metrics，请检查 ecom-api 是否启动。"
+
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum by (job, service) (rate(http_requests_total{job=~"ecom-api-.*", status=~"5.."}[5m]))
+            /
+            sum by (job, service) (rate(http_requests_total{job=~"ecom-api-.*"}[5m]))
+          ) > 0.05
+          and
+          sum by (job, service) (rate(http_requests_total{job=~"ecom-api-.*"}[5m])) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }} HTTP 5xx 比例 > 5%"
+          description: "job={{ $labels.job }} 近 5 分钟 5xx 占比超过 5%。"
+
+      - alert: HighP95Latency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le, job, service) (rate(http_request_duration_seconds_bucket{job=~"ecom-api-.*"}[5m]))
+          ) > 2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.service }} P95 延迟 > 2s"
+          description: "job={{ $labels.job }} 95 分位请求延迟超过 2 秒。"

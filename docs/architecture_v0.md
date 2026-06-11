@@ -45,7 +45,7 @@ Postmortem → Knowledge Base
 │  EcomAI ecom-api（被监控 FastAPI 服务）                       │
 │  + prometheus-fastapi-instrumentator 暴露 /metrics           │
 │  + 应用日志写文件 logs/ecom-api/*.log（训练营手动查看）        │
-│  Admin :8080  |  Portal :8085                                │
+│  Admin :8081  |  Portal :8085（以 EcomAI .env 为准）            │
 └───────────────────────────┬─────────────────────────────────┘
                             │ HTTP scrape（Prometheus Pull）
                             ▼
@@ -148,7 +148,7 @@ Postmortem → Knowledge Base
 | — | Redis | 6379 |
 | — | MySQL（库 `opsai`） | 3306 |
 
-EcomAI 端口（避免冲突）：Admin API 8080、Portal API 8085、Web 8090/8095/5173。
+EcomAI 端口（本机 `.env`）：Admin API **8081**（`ADMIN_PORT`）、Portal API 8085、Web 8090/8095/5173。计划文档默认写 8080，以实际 `.env` 与 `observability/prometheus/prometheus.yml` 为准。
 
 ---
 

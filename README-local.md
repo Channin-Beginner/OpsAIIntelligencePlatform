@@ -9,6 +9,15 @@
 | ops-ops-web | 8295 | 运维工作台 |
 | MySQL | 3306 | 库名 `opsai` |
 | Redis | 6379 | 告警 fingerprint 去重 |
+| Prometheus | 9090 | 指标抓取与告警规则（工具见下方） |
+| Alertmanager | 9093 | 告警路由 → ops-api Webhook |
+| Grafana | 3000 | 可视化大盘 |
+| EcomAI ecom-api Admin | 8081 | 被监控服务 + `/metrics`（以 EcomAI `.env` `ADMIN_PORT` 为准） |
+| EcomAI ecom-api Portal | 8085 | 被监控服务 + `/metrics` |
+
+> **可观测工具安装路径**（与 OpsAI 仓库分离）：  
+> `D:\YIBANWENJIANJI\BIANCHENG\OperationalTools\PrometheusStack`  
+> 配置与大盘在仓库 `observability/`，详见 `observability/README.md`。
 
 ## 启动顺序
 
@@ -74,6 +83,29 @@ npm run dev
 
 访问：http://127.0.0.1:8290
 
+### 5. 可观测栈（阶段二 2.A）
+
+**前置**：EcomAI `ecom-api` 已按 `docs/ecomai_metrics_integration.md` 暴露 `/metrics`。
+
+```powershell
+# 确保 ops-api 已在 8280 运行后执行
+.\observability\scripts\start-observability-stack.ps1
+```
+
+| 控制台 | 地址 |
+|--------|------|
+| Prometheus Targets | http://127.0.0.1:9090/targets |
+| Alertmanager | http://127.0.0.1:9093 |
+| Grafana（大盘在 OpsAI 文件夹） | http://127.0.0.1:3000 |
+
+单独启动：
+
+```powershell
+.\observability\scripts\start-prometheus.ps1
+.\observability\scripts\start-alertmanager.ps1
+.\observability\scripts\start-grafana.ps1
+```
+
 ## 种子账号
 
 | 用户名 | 密码 | 角色 | 可登录 |
@@ -138,4 +170,7 @@ VITE_API_BASE=http://127.0.0.1:8280
 packages/shared/     # axios 封装、TypeScript 类型、枚举（两端共用）
 ops-ops-web/         # 运维工作台：告警列表、Incident 列表与详情
 ops-admin-web/       # 管理台：用户列表、Webhook 接入配置说明
+observability/       # Prometheus / Alertmanager / Grafana 配置与启动脚本
+docs/metrics_dictionary.md
+docs/ecomai_metrics_integration.md
 ```

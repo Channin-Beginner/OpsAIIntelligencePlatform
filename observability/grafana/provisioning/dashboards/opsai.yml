@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: OpsAI
+    orgId: 1
+    folder: OpsAI
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: D:/YIBANWENJIANJI/BIANCHENG/Project/OpsAIIntelligencePlatform/observability/grafana/dashboards

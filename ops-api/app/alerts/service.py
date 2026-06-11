@@ -193,6 +193,10 @@ def process_single_alert(
     )
 
     if not is_new_in_window:
+        open_incident = _find_open_incident_by_fingerprint(db, alert.fingerprint)
+        if open_incident:
+            _link_alert_to_incident(db, open_incident, alert_event)
+            return alert_event, open_incident.id, False
         return alert_event, None, False
 
     open_incident = _find_open_incident_by_fingerprint(db, alert.fingerprint)

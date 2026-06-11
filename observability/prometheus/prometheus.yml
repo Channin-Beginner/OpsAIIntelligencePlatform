@@ -1,0 +1,40 @@
+# OpsAI 阶段二 2.A — Prometheus 主配置
+# 抓取 EcomAI ecom-api Admin / Portal 的 /metrics
+# Admin 端口以 EcomAI .env 的 ADMIN_PORT 为准（本机为 8081）
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: local
+    project: opsai
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 127.0.0.1:9093
+
+rule_files:
+  - alerts/*.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ['127.0.0.1:9090']
+
+  - job_name: ecom-api-admin
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['127.0.0.1:8081']
+        labels:
+          service: ecom-api-admin
+          env: local
+
+  - job_name: ecom-api-portal
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['127.0.0.1:8085']
+        labels:
+          service: ecom-api-portal
+          env: local

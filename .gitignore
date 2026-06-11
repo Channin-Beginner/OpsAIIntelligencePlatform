@@ -25,7 +25,14 @@ models/**/*.safetensors
 
 # 上传目录、日志
 upload/
+logs/
 *.log
+
+# 阶段二造数输出（2.C.7）
+灌注数据/
+
+# 可观测二进制（过大）
+observability/bin/
 
 
 /markdown文档

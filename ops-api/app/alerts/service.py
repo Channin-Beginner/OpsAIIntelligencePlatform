@@ -177,6 +177,18 @@ def _persist_alert_event(
     return event
 
 
+def _find_incident_by_fingerprint(
+    db: Session,
+    fingerprint: str,
+    *,
+    open_only: bool = True,
+) -> Incident | None:
+    stmt = select(Incident).where(Incident.primary_fingerprint == fingerprint)
+    if open_only:
+        stmt = stmt.where(Incident.status.in_(OPEN_STATUSES))
+    return db.scalar(stmt.order_by(Incident.created_at.desc()).limit(1))
+
+
 def process_single_alert(
     db: Session,
     alert: AlertmanagerAlert,
@@ -187,6 +199,18 @@ def process_single_alert(
     redis_key = _fingerprint_redis_key(alert.fingerprint)
 
     alert_event = _persist_alert_event(db, alert, payload)
+
+    if alert.status == "resolved":
+        incident = _find_incident_by_fingerprint(db, alert.fingerprint, open_only=False)
+        if incident is not None:
+            _link_alert_to_incident(
+                db,
+                incident,
+                alert_event,
+                merge_content=f"告警已恢复: {alert_event.title}",
+            )
+            return alert_event, incident.id, False
+        return alert_event, None, False
 
     is_new_in_window = bool(
         redis_client.set(redis_key, "1", nx=True, ex=settings.alert_fingerprint_ttl_seconds)

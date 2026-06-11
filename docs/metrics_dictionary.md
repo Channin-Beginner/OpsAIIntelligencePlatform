@@ -15,7 +15,8 @@
 | 指标名 | 类型 | 主要标签 | 含义 |
 |--------|------|----------|------|
 | `http_requests_total` | Counter | `method`, `status`, `handler`, `job` | HTTP 请求总数 |
-| `http_request_duration_seconds` | Histogram | `method`, `handler`, `le`, `job` | 请求耗时分布 |
+| `http_request_duration_seconds` | Histogram | `method`, `handler`, `le`, `job` | 请求耗时（粗分桶，仅 0.1/0.5/1.0/+Inf，**勿用于 P95 告警**） |
+| `http_request_duration_highr_seconds` | Histogram | `le`, `job` | 高精度耗时分桶，**P95 告警必须用此指标** |
 | `http_request_size_bytes` | Summary | `method`, `handler` | 请求体大小 |
 | `http_response_size_bytes` | Summary | `method`, `handler` | 响应体大小 |
 | `up` | Gauge | `job`, `service` | Prometheus 抓取是否成功（1=UP） |
@@ -26,7 +27,7 @@
 |------|--------|----------|
 | QPS | `sum(rate(http_requests_total{job=~"ecom-api-.*"}[1m])) by (job)` | — |
 | 5xx 错误率 | `sum(rate(http_requests_total{job=~"ecom-api-.*",status=~"5.."}[5m])) by (job) / sum(rate(http_requests_total{job=~"ecom-api-.*"}[5m])) by (job)` | `HighErrorRate` |
-| P95 延迟 | `histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=~"ecom-api-.*"}[5m])) by (le, job))` | `HighP95Latency` |
+| P95 延迟 | `histogram_quantile(0.95, sum(rate(http_request_duration_highr_seconds_bucket{job=~"ecom-api-.*"}[5m])) by (le, job))` | `HighP95Latency` |
 | 服务存活 | `up{job=~"ecom-api-.*"}` | `EcomApiDown` |
 
 ## 告警规则与故障对照

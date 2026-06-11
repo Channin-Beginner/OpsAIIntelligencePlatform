@@ -100,7 +100,7 @@
       "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=~\"ecom-api-.*\"}[5m])) by (le, job))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_highr_seconds_bucket{job=~\"ecom-api-.*\"}[5m])) by (le, job))",
           "legendFormat": "{{job}} P95",
           "refId": "A"
         }

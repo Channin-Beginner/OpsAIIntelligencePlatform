@@ -185,11 +185,24 @@ def get_incident_detail(db: Session, incident_id: int) -> IncidentDetailSchema:
     ).all()
     related_alerts: list[AlertEvent] = []
     if rel_alert_ids:
-        related_alerts = list(
+        linked = list(
             db.scalars(
                 select(AlertEvent).where(AlertEvent.id.in_(rel_alert_ids))
             ).all()
         )
+        seen_fingerprints: set[str] = set()
+        for alert in linked:
+            if alert.fingerprint in seen_fingerprints:
+                continue
+            seen_fingerprints.add(alert.fingerprint)
+            latest = db.scalar(
+                select(AlertEvent)
+                .where(AlertEvent.fingerprint == alert.fingerprint)
+                .order_by(AlertEvent.created_at.desc(), AlertEvent.id.desc())
+                .limit(1)
+            )
+            if latest is not None:
+                related_alerts.append(latest)
 
     recent_timeline = list(
         db.scalars(

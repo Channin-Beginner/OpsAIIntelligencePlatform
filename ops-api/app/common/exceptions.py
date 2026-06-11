@@ -25,3 +25,8 @@ class ConflictError(AppError):
 class BadRequestError(AppError):
     def __init__(self, message: str, data: dict | None = None):
         super().__init__(message=message, code=400, status_code=400, data=data)
+
+
+class ForbiddenError(AppError):
+    def __init__(self, message: str = "无权限访问"):
+        super().__init__(message=message, code=403, status_code=403)

@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.alerts.router import router as alerts_router
@@ -10,6 +11,7 @@ from app.common.response import error, success
 from app.config import get_settings
 from app.incidents.router import router as incidents_router
 from app.incidents.router import timeline_router
+from app.users.router import router as users_router
 from app.webhooks.alertmanager import router as webhooks_router
 
 settings = get_settings()
@@ -18,6 +20,19 @@ app = FastAPI(
     title="OpsAI Intelligence Platform API",
     version=settings.app_version,
     description="运维智脑平台 ops-api",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:8290",
+        "http://127.0.0.1:8295",
+        "http://localhost:8290",
+        "http://localhost:8295",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -58,3 +73,4 @@ app.include_router(auth_router)
 app.include_router(alerts_router)
 app.include_router(incidents_router)
 app.include_router(timeline_router)
+app.include_router(users_router)

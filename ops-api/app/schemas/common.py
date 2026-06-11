@@ -158,3 +158,13 @@ class LoginResponse(BaseModel):
     username: str
     display_name: str
     role: str
+
+
+class UserSummarySchema(BaseModel):
+    id: int
+    username: str
+    display_name: str
+    role: str
+    is_active: bool
+    created_at: str
+    updated_at: str

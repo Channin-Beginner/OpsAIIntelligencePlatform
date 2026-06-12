@@ -15,6 +15,9 @@ class KbArticle(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     tags_text: Mapped[str | None] = mapped_column(String(512), nullable=True)
     service: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    source_incident_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, index=True
+    )
     status: Mapped[str] = mapped_column(
         Enum("draft", "published", name="kb_article_status"),
         nullable=False,

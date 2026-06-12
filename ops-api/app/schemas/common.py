@@ -214,3 +214,122 @@ class IncidentFeedbackSchema(BaseModel):
     verdict: str
     comment: str | None = None
     created_at: str
+
+
+class RunbookStepSchema(BaseModel):
+    order: int
+    title: str
+    description: str | None = None
+    action_type: str = "manual"
+    action: dict[str, Any] | None = None
+
+
+class RunbookSchema(BaseModel):
+    id: int
+    title: str
+    description: str | None = None
+    steps: list[RunbookStepSchema | dict[str, Any]] = Field(default_factory=list)
+    risk_level: str
+    service_tags: list[str] = Field(default_factory=list)
+    alert_names: list[str] = Field(default_factory=list)
+    status: str
+    created_at: str
+    updated_at: str
+
+
+class RunbookCreateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=256)
+    description: str | None = Field(default=None, max_length=1024)
+    steps: list[dict[str, Any]] = Field(min_length=1)
+    risk_level: str = "low"
+    service_tags: list[str] = Field(default_factory=list)
+    alert_names: list[str] = Field(default_factory=list)
+
+
+class RunbookUpdateRequest(BaseModel):
+    title: str | None = Field(default=None, max_length=256)
+    description: str | None = Field(default=None, max_length=1024)
+    steps: list[dict[str, Any]] | None = None
+    risk_level: str | None = None
+    service_tags: list[str] | None = None
+    alert_names: list[str] | None = None
+
+
+class RunbookStepResultSchema(BaseModel):
+    order: int | None = None
+    title: str | None = None
+    action_type: str | None = None
+    status: str | None = None
+    message: str | None = None
+    error: str | None = None
+    http: dict[str, Any] | None = None
+
+
+class RunbookExecutionSchema(BaseModel):
+    id: int
+    runbook_id: int
+    runbook_title: str | None = None
+    incident_id: int
+    rca_result_id: int | None = None
+    status: str
+    step_results: list[RunbookStepResultSchema | dict[str, Any]] = Field(default_factory=list)
+    error_message: str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
+    created_at: str
+
+
+class RunbookExecutionStartRequest(BaseModel):
+    runbook_id: int
+    rca_result_id: int | None = None
+    confirmed: bool = False
+
+
+class RunbookAdoptionStatsSchema(BaseModel):
+    recommended_rca_count: int
+    adopted_rca_count: int
+    adoption_rate: float
+    total_executions: int
+    successful_executions: int
+    execution_success_rate: float
+
+
+class KbArticleSchema(BaseModel):
+    id: int
+    title: str
+    summary: str | None = None
+    content: str
+    tags_text: str | None = None
+    service: str | None = None
+    source_incident_id: int | None = None
+    status: str
+    created_at: str
+    updated_at: str
+
+
+class KbArticleCreateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=256)
+    summary: str | None = Field(default=None, max_length=512)
+    content: str = Field(min_length=1)
+    tags_text: str | None = Field(default=None, max_length=512)
+    service: str | None = Field(default=None, max_length=128)
+    source_incident_id: int | None = None
+
+
+class KbArticleUpdateRequest(BaseModel):
+    title: str | None = Field(default=None, max_length=256)
+    summary: str | None = Field(default=None, max_length=512)
+    content: str | None = None
+    tags_text: str | None = Field(default=None, max_length=512)
+    service: str | None = Field(default=None, max_length=128)
+
+
+class DashboardOverviewSchema(BaseModel):
+    core_kpi: dict[str, Any]
+    alert_curve_24h: list[dict[str, Any]]
+    incident_funnel: list[dict[str, Any]]
+    service_health_top: list[dict[str, Any]]
+    rca_quality: dict[str, Any]
+    mttr_trend_30d: list[dict[str, Any]]
+    top_root_causes: list[dict[str, Any]]
+    runbook_success: dict[str, Any]

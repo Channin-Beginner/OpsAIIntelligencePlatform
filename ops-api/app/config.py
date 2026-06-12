@@ -41,9 +41,18 @@ class Settings(BaseSettings):
 
     app_host: str = "127.0.0.1"
     app_port: int = 8280
-    app_version: str = "0.3.0-phase3-rca"
+    app_version: str = "1.0.0-mvp"
+    app_env: str = "dev"
+    log_level: str = "INFO"
+    log_format: str = "text"
+    log_dir: str = "logs"
+    log_file_enabled: bool = True
+    log_access: bool = True
 
     alert_fingerprint_ttl_seconds: int = 1800
+
+    ecom_admin_base_url: str = "http://127.0.0.1:8081"
+    runbook_http_timeout: float = 10.0
 
     # 可观测后端（阶段三 Agent 工具层）
     prometheus_base_url: str = "http://127.0.0.1:9090"

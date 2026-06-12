@@ -39,9 +39,12 @@ cd D:\YIBANWENJIANJI\BIANCHENG\Project\OpsAIIntelligencePlatform
 # 默认 route=/chaos/error；勿用不存在的 /api/v1/products（只会 404，不会触发 5xx 告警）
 ```
 
-**机制**：`POST /admin/chaos/portal-500` 开启 flag 后，脚本持续 hammer `GET /chaos/error`（返回 500 且计入 metrics）。
+**机制**：`POST /admin/chaos/portal-500` 开启 flag 后，脚本持续 hammer `GET /chaos/error`（返回 500 且计入 metrics）。Admin 与 Portal 为**独立进程**，flag 写入 `ecom-api/data/chaos_state.json` 共享；更新 EcomAI 代码后需**重启 Admin + Portal**。
 
 **观察**：`http_requests_total{status=~"5.."}` 占比 >5%，**for: 2m** 后 `HighErrorRate` firing。
+
+**排错**：脚本会先探测 `GET /chaos/error` 是否返回 500；若仍是 200，说明 flag 未同步，重启 EcomAI 后再跑。Prometheus 可执行：
+`sum(rate(http_requests_total{job="ecom-api-portal",status=~"5.."}[5m])) / sum(rate(http_requests_total{job="ecom-api-portal"}[5m]))`
 
 ### 3. LLM 超时
 

@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from sqlalchemy import func, select
@@ -18,6 +19,8 @@ from app.schemas.common import (
     WebhookResult,
     build_page_meta,
 )
+
+logger = logging.getLogger("ops.alerts")
 
 OPEN_STATUSES = ("open", "acknowledged", "investigating", "mitigated")
 SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
@@ -150,6 +153,8 @@ def _persist_alert_event(
     db: Session,
     alert: AlertmanagerAlert,
     payload: AlertmanagerWebhookPayload,
+    *,
+    source: str = "alertmanager",
 ) -> AlertEvent:
     labels = alert.labels or {}
     annotations = alert.annotations or {}
@@ -160,7 +165,7 @@ def _persist_alert_event(
 
     event = AlertEvent(
         fingerprint=alert.fingerprint,
-        source="alertmanager",
+        source=source,
         status=alert.status,
         severity=severity,
         alertname=labels.get("alertname"),
@@ -193,12 +198,14 @@ def process_single_alert(
     db: Session,
     alert: AlertmanagerAlert,
     payload: AlertmanagerWebhookPayload,
+    *,
+    source: str = "alertmanager",
 ) -> tuple[AlertEvent, int | None, bool]:
     settings = get_settings()
     redis_client = get_redis_client()
     redis_key = _fingerprint_redis_key(alert.fingerprint)
 
-    alert_event = _persist_alert_event(db, alert, payload)
+    alert_event = _persist_alert_event(db, alert, payload, source=source)
 
     if alert.status == "resolved":
         incident = _find_incident_by_fingerprint(db, alert.fingerprint, open_only=False)
@@ -209,7 +216,18 @@ def process_single_alert(
                 alert_event,
                 merge_content=f"告警已恢复: {alert_event.title}",
             )
+            logger.info(
+                "alert resolved merged fingerprint=%s incident_id=%s alert_id=%s",
+                alert.fingerprint,
+                incident.id,
+                alert_event.id,
+            )
             return alert_event, incident.id, False
+        logger.info(
+            "alert resolved no incident fingerprint=%s alert_id=%s",
+            alert.fingerprint,
+            alert_event.id,
+        )
         return alert_event, None, False
 
     is_new_in_window = bool(
@@ -220,29 +238,63 @@ def process_single_alert(
         open_incident = _find_open_incident_by_fingerprint(db, alert.fingerprint)
         if open_incident:
             _link_alert_to_incident(db, open_incident, alert_event)
+            logger.info(
+                "alert deduped merged fingerprint=%s incident_id=%s alert_id=%s",
+                alert.fingerprint,
+                open_incident.id,
+                alert_event.id,
+            )
             return alert_event, open_incident.id, False
+        logger.info(
+            "alert deduped skipped fingerprint=%s alert_id=%s",
+            alert.fingerprint,
+            alert_event.id,
+        )
         return alert_event, None, False
 
     open_incident = _find_open_incident_by_fingerprint(db, alert.fingerprint)
     if open_incident:
         _link_alert_to_incident(db, open_incident, alert_event)
+        logger.info(
+            "alert merged to open incident fingerprint=%s incident_id=%s alert_id=%s",
+            alert.fingerprint,
+            open_incident.id,
+            alert_event.id,
+        )
         return alert_event, open_incident.id, False
 
-    # 新 fingerprint 或 critical 且无开放 Incident 时建单
     incident = _create_incident_from_alert(db, alert_event)
+    logger.info(
+        "incident created from alert fingerprint=%s incident_id=%s alert_id=%s severity=%s",
+        alert.fingerprint,
+        incident.id,
+        alert_event.id,
+        alert_event.severity,
+    )
     return alert_event, incident.id, True
 
 
-def process_alertmanager_webhook(
+def process_webhook_payload(
     db: Session,
     payload: AlertmanagerWebhookPayload,
+    *,
+    source: str = "alertmanager",
 ) -> WebhookResult:
+    logger.info(
+        "webhook received source=%s status=%s receiver=%s alert_count=%s",
+        source,
+        payload.status,
+        payload.receiver,
+        len(payload.alerts),
+    )
     alert_event_ids: list[int] = []
     last_incident_id: int | None = None
     incident_created = False
 
     for alert in payload.alerts:
-        event, incident_id, created = process_single_alert(db, alert, payload)
+        event, incident_id, created = process_single_alert(
+            db, alert, payload, source=source
+        )
         alert_event_ids.append(event.id)
         if incident_id is not None:
             last_incident_id = incident_id
@@ -251,12 +303,35 @@ def process_alertmanager_webhook(
 
     db.commit()
 
-    return WebhookResult(
+    result = WebhookResult(
         processed_count=len(alert_event_ids),
         alert_event_ids=alert_event_ids,
         incident_id=last_incident_id,
         incident_created=incident_created,
     )
+    logger.info(
+        "webhook processed source=%s processed=%s incident_id=%s incident_created=%s",
+        source,
+        result.processed_count,
+        result.incident_id,
+        result.incident_created,
+    )
+    return result
+
+
+def process_alertmanager_webhook(
+    db: Session,
+    payload: AlertmanagerWebhookPayload,
+) -> WebhookResult:
+    return process_webhook_payload(db, payload, source="alertmanager")
+
+
+def process_grafana_webhook(
+    db: Session,
+    payload: AlertmanagerWebhookPayload,
+) -> WebhookResult:
+    """Grafana Unified Alerting Webhook（与 Alertmanager v4 载荷兼容）。"""
+    return process_webhook_payload(db, payload, source="grafana")
 
 
 def list_alerts(

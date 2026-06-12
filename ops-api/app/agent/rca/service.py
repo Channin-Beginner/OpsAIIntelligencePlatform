@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from decimal import Decimal
 
@@ -24,6 +25,8 @@ from app.schemas.common import (
     RcaResultSchema,
     RcaTriggerRequest,
 )
+
+logger = logging.getLogger("ops.rca")
 
 RCA_LOCK_PREFIX = "rca:lock:"
 RCA_LOCK_TTL_SECONDS = 300
@@ -152,6 +155,7 @@ def trigger_rca(
         metadata={"rca_result_id": row.id},
     )
     db.commit()
+    logger.info("rca started incident_id=%s rca_result_id=%s", incident_id, row.id)
 
     try:
         primary_alert = _get_primary_alert(db, incident_id)
@@ -182,8 +186,19 @@ def trigger_rca(
         )
         db.commit()
         db.refresh(row)
+        logger.info(
+            "rca completed incident_id=%s rca_result_id=%s confidence=%s",
+            incident_id,
+            row.id,
+            float(row.confidence) if row.confidence else None,
+        )
         return rca_result_to_schema(row)
     except Exception as exc:
+        logger.exception(
+            "rca failed incident_id=%s rca_result_id=%s",
+            incident_id,
+            row.id,
+        )
         row.status = "failed"
         row.error_message = str(exc)[:512]
         row.completed_at = datetime.now()

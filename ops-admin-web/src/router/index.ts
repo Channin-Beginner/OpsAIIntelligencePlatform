@@ -27,6 +27,18 @@ const router = createRouter({
           component: () => import('@/views/IntegrationView.vue'),
           meta: { title: '接入配置' },
         },
+        {
+          path: 'admin/kb',
+          name: 'admin-kb',
+          component: () => import('@/views/KbArticlesView.vue'),
+          meta: { title: '知识库' },
+        },
+        {
+          path: 'admin/runbooks',
+          name: 'admin-runbooks',
+          component: () => import('@/views/RunbooksView.vue'),
+          meta: { title: 'Runbook 管理' },
+        },
       ],
     },
   ],

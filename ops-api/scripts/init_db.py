@@ -21,8 +21,17 @@ DDL_FILES = [
     "06_kb_article.sql",
     "07_rca_result.sql",
     "08_incident_feedback.sql",
+    "09_runbook.sql",
     "99_seed_users.sql",
     "98_seed_kb_articles.sql",
+    "97_seed_runbooks.sql",
+    "10_kb_source_incident.sql",
+]
+
+ADS_FILES = [
+    "01_ads_alert_daily.sql",
+    "02_ads_mttr_daily.sql",
+    "03_ads_agent_quality.sql",
 ]
 
 
@@ -31,6 +40,7 @@ def main() -> None:
 
     settings = get_settings()
     ddl_dir = REPO_ROOT / "sql" / "ddl"
+    ads_dir = REPO_ROOT / "sql" / "ads"
     conn = pymysql.connect(
         host=settings.mysql_host,
         port=settings.mysql_port,
@@ -45,6 +55,21 @@ def main() -> None:
                 path = ddl_dir / name
                 sql = path.read_text(encoding="utf-8")
                 print(f"Executing {name}...")
+                for raw in sql.split(";"):
+                    lines = [
+                        line
+                        for line in raw.splitlines()
+                        if line.strip() and not line.strip().startswith("--")
+                    ]
+                    statement = "\n".join(lines).strip()
+                    if statement:
+                        cursor.execute(statement)
+            for name in ADS_FILES:
+                path = ads_dir / name
+                if not path.exists():
+                    continue
+                sql = path.read_text(encoding="utf-8")
+                print(f"Executing ads/{name}...")
                 for raw in sql.split(";"):
                     lines = [
                         line

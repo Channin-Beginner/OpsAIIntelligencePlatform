@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Bell, List, Monitor } from '@element-plus/icons-vue'
+import { Bell, DataAnalysis, List, Monitor } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
@@ -10,6 +10,7 @@ const auth = useAuthStore()
 
 const activeMenu = computed(() => {
   if (route.path.startsWith('/incidents')) return '/incidents'
+  if (route.path.startsWith('/dashboard')) return '/dashboard'
   return route.path
 })
 
@@ -27,6 +28,10 @@ function handleLogout() {
         <span>OpsAI 运维台</span>
       </div>
       <el-menu :default-active="activeMenu" router class="ops-menu">
+        <el-menu-item index="/dashboard">
+          <el-icon><DataAnalysis /></el-icon>
+          <span>运维大屏</span>
+        </el-menu-item>
         <el-menu-item index="/alerts">
           <el-icon><Bell /></el-icon>
           <span>告警列表</span>

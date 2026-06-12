@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from sqlalchemy import func, select
@@ -27,6 +28,8 @@ from app.schemas.common import (
     TimelineEventSchema,
     build_page_meta,
 )
+
+logger = logging.getLogger("ops.incidents")
 
 ACTION_STATUS_LABELS = {
     "acknowledge": "已确认",
@@ -237,6 +240,8 @@ def patch_incident(
     if body.description is not None:
         incident.description = body.description
 
+    should_trigger_postmortem = False
+
     if body.action:
         target_status = validate_action(incident.status, body.action)
 
@@ -290,6 +295,7 @@ def patch_incident(
                 incident.acknowledged_at = now
             elif target_status == "resolved":
                 incident.resolved_at = now
+                should_trigger_postmortem = True
             elif target_status == "closed":
                 incident.closed_at = now
             elif target_status == "investigating" and body.action == "reopen_investigation":
@@ -312,6 +318,14 @@ def patch_incident(
                     "action": body.action,
                 },
             )
+            logger.info(
+                "incident status changed incident_id=%s action=%s %s -> %s actor_id=%s",
+                incident.id,
+                body.action,
+                old_status,
+                target_status,
+                actor_id,
+            )
     elif body.owner_id is not None:
         owner = db.get(SysUser, body.owner_id)
         if owner is None:
@@ -329,6 +343,17 @@ def patch_incident(
 
     db.commit()
     db.refresh(incident, attribute_names=["owner"])
+
+    if should_trigger_postmortem:
+        try:
+            from app.agent.postmortem.postmortem_agent import generate_postmortem_draft
+
+            generate_postmortem_draft(db, incident.id)
+            logger.info("postmortem draft triggered incident_id=%s", incident.id)
+        except Exception:
+            logger.exception("postmortem draft failed incident_id=%s", incident.id)
+            db.rollback()
+
     return incident_to_schema(incident, alert_count=_count_alerts(db, incident.id))
 
 

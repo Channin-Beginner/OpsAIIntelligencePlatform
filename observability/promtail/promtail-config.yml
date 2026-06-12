@@ -1,0 +1,32 @@
+# OpsAI 阶段三 3.A — Promtail 采集 EcomAI ecom-api 本地日志文件
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: D:/YIBANWENJIANJI/BIANCHENG/OperationalTools/PrometheusStack/data/promtail/positions.yaml
+
+clients:
+  - url: http://127.0.0.1:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: ecom-api-admin
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: ecom-api
+          service: ecom-api-admin
+          env: local
+          __path__: D:/YIBANWENJIANJI/BIANCHENG/Project/EcomAIIntelligencePlatform/ecom-api/logs/admin.log
+
+  - job_name: ecom-api-portal
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: ecom-api
+          service: ecom-api-portal
+          env: local
+          __path__: D:/YIBANWENJIANJI/BIANCHENG/Project/EcomAIIntelligencePlatform/ecom-api/logs/portal.log

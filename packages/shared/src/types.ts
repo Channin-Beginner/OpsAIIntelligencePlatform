@@ -105,3 +105,45 @@ export interface AuthUser {
   role: UserRole
   token: string
 }
+
+export interface RcaEvidenceItem {
+  type: 'metric' | 'log' | 'trace' | 'kb' | string
+  source: string
+  summary: string
+  query?: string | null
+  detail?: Record<string, unknown> | unknown[] | null
+}
+
+export interface RcaResult {
+  id: number
+  incident_id: number
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  hypothesis: string | null
+  confidence: number | null
+  evidence: RcaEvidenceItem[]
+  suggested_runbook_ids: number[]
+  suggested_actions: string[]
+  model_name: string | null
+  error_message: string | null
+  created_at: string
+  completed_at: string | null
+}
+
+export interface IncidentFeedback {
+  id: number
+  incident_id: number
+  rca_result_id: number | null
+  user_id: number | null
+  user_name: string | null
+  score: number
+  verdict: 'accept' | 'reject'
+  comment: string | null
+  created_at: string
+}
+
+export interface IncidentFeedbackRequest {
+  score: number
+  verdict: 'accept' | 'reject'
+  comment?: string
+  rca_result_id?: number
+}

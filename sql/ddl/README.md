@@ -9,7 +9,11 @@
 03_incident.sql
 04_incident_timeline.sql
 05_incident_alert_rel.sql
+06_kb_article.sql
+07_rca_result.sql       # 阶段三 3.C RCA 结果
+08_incident_feedback.sql   # 阶段三 3.C 反馈闭环
 99_seed_users.sql   # 可选，阶段一 1.B 建库后执行
+98_seed_kb_articles.sql   # 可选，阶段三 3.B RAG 示例语料
 ```
 
 PowerShell 示例（按文件逐个 source，或使用 MySQL Workbench 依次运行）。

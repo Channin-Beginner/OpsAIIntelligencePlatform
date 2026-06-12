@@ -1,0 +1,52 @@
+# OpsAI 阶段三 3.A — OTel Collector
+# 接收 ecom-api OTLP（4317 gRPC / 4318 HTTP），转发至 Prometheus / Loki / Tempo
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:4317
+      http:
+        endpoint: 127.0.0.1:4318
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: local
+        action: upsert
+
+exporters:
+  prometheus:
+    endpoint: 127.0.0.1:8889
+    const_labels:
+      pipeline: otel-collector
+  otlphttp/loki:
+    endpoint: http://127.0.0.1:3100/otlp
+    tls:
+      insecure: true
+  otlp/tempo:
+    endpoint: 127.0.0.1:4319
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [otlphttp/loki]
+    traces:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [otlp/tempo]
+  telemetry:
+    logs:
+      level: info

@@ -7,7 +7,7 @@ info:
     - 响应统一包装为 CommonResult（对齐 EcomAI）
     - 阶段一范围：Health、Auth、Alertmanager Webhook、Alert 列表、Incident CRUD、Timeline
     - 认证：JWT Bearer（`POST /api/v1/auth/login`）；Webhook 端点无需认证
-  version: 0.1.0-phase1
+  version: 0.3.0-phase3-rca
   contact:
     name: OpsAI Team
 
@@ -28,6 +28,8 @@ tags:
     description: 故障管理（Dispatch 思路）
   - name: Timeline
     description: Incident 审计时间线
+  - name: RCA
+    description: DeepSeek 根因分析 Agent（阶段三）
 
 paths:
   /health:
@@ -335,6 +337,95 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CommonResultTimelineEvent'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/incidents/{incident_id}/rca:
+    get:
+      tags: [RCA]
+      summary: 获取最近一次 RCA 结果
+      operationId: getIncidentRca
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IncidentId'
+      responses:
+        '200':
+          description: 有结果时返回 RcaResult；无记录时 data 为 null
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultRcaResultNullable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [RCA]
+      summary: 触发 DeepSeek RCA 分析
+      description: |
+        收集 metric / log / trace / kb 证据链后调用 DeepSeek。
+        Redis 锁防止同一 Incident 并发重复分析；`force=true` 可跳过「进行中」校验（仍受锁约束）。
+      operationId: triggerIncidentRca
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IncidentId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RcaTriggerRequest'
+      responses:
+        '201':
+          description: RCA 完成（含 completed 或 failed 状态）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultRcaResult'
+        '409':
+          description: RCA 正在执行或已有进行中任务
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/incidents/{incident_id}/feedback:
+    post:
+      tags: [RCA]
+      summary: 提交 RCA 采纳/驳回反馈
+      operationId: submitIncidentFeedback
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IncidentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncidentFeedbackRequest'
+      responses:
+        '201':
+          description: 反馈已记录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultIncidentFeedback'
+        '400':
+          description: 参数无效
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultError'
         '404':
           $ref: '#/components/responses/NotFound'
         '401':
@@ -931,3 +1022,169 @@ components:
           type: string
         data:
           $ref: '#/components/schemas/AlertPage'
+
+    # ── RCA Agent（阶段三）────────────────────────────────────
+    RcaEvidenceItem:
+      type: object
+      required: [type, source, summary]
+      properties:
+        type:
+          type: string
+          enum: [metric, log, trace, kb]
+        source:
+          type: string
+          example: prometheus
+        summary:
+          type: string
+        query:
+          type: string
+          nullable: true
+        detail:
+          type: object
+          additionalProperties: true
+          nullable: true
+
+    RcaResult:
+      type: object
+      required: [id, incident_id, status, evidence, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        incident_id:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+        hypothesis:
+          type: string
+          nullable: true
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          nullable: true
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/RcaEvidenceItem'
+        suggested_runbook_ids:
+          type: array
+          items:
+            type: integer
+            format: int64
+        suggested_actions:
+          type: array
+          items:
+            type: string
+        model_name:
+          type: string
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    RcaTriggerRequest:
+      type: object
+      properties:
+        force:
+          type: boolean
+          default: false
+          description: 为 true 时忽略「已有 running 记录」校验（Redis 锁仍生效）
+
+    IncidentFeedbackRequest:
+      type: object
+      required: [score, verdict]
+      properties:
+        score:
+          type: integer
+          minimum: 1
+          maximum: 5
+        verdict:
+          type: string
+          enum: [accept, reject]
+        comment:
+          type: string
+          maxLength: 2000
+          nullable: true
+        rca_result_id:
+          type: integer
+          format: int64
+          nullable: true
+
+    IncidentFeedback:
+      type: object
+      required: [id, incident_id, score, verdict, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        incident_id:
+          type: integer
+          format: int64
+        rca_result_id:
+          type: integer
+          format: int64
+          nullable: true
+        user_id:
+          type: integer
+          format: int64
+          nullable: true
+        user_name:
+          type: string
+          nullable: true
+        score:
+          type: integer
+        verdict:
+          type: string
+          enum: [accept, reject]
+        comment:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    CommonResultRcaResult:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/RcaResult'
+
+    CommonResultRcaResultNullable:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+        data:
+          oneOf:
+            - $ref: '#/components/schemas/RcaResult'
+            - type: 'null'
+
+    CommonResultIncidentFeedback:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/IncidentFeedback'

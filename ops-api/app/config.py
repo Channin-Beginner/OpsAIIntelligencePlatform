@@ -41,9 +41,20 @@ class Settings(BaseSettings):
 
     app_host: str = "127.0.0.1"
     app_port: int = 8280
-    app_version: str = "0.1.0-phase1"
+    app_version: str = "0.3.0-phase3-rca"
 
     alert_fingerprint_ttl_seconds: int = 1800
+
+    # 可观测后端（阶段三 Agent 工具层）
+    prometheus_base_url: str = "http://127.0.0.1:9090"
+    loki_base_url: str = "http://127.0.0.1:3100"
+    tempo_base_url: str = "http://127.0.0.1:3200"
+    jaeger_base_url: str = "http://127.0.0.1:16686"
+    trace_backend: str = "tempo"
+    observability_http_timeout: float = 15.0
+    ecom_log_dir: str = (
+        r"D:\YIBANWENJIANJI\BIANCHENG\Project\EcomAIIntelligencePlatform\ecom-api\logs"
+    )
 
     @property
     def database_url(self) -> str:

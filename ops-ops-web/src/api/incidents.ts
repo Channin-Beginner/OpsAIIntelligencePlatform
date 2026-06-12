@@ -1,9 +1,12 @@
-import { apiGet, apiPatch } from '@opsai/shared'
+import { apiGet, apiPatch, apiPost } from '@opsai/shared'
 import type {
   IncidentDetail,
+  IncidentFeedback,
+  IncidentFeedbackRequest,
   IncidentPatchRequest,
   IncidentSummary,
   PageResult,
+  RcaResult,
   TimelineEvent,
 } from '@opsai/shared'
 import { http } from './client'
@@ -34,4 +37,16 @@ export function listTimeline(incidentId: number, page = 1, page_size = 50) {
   return apiGet<PageResult<TimelineEvent>>(http, `/api/v1/incidents/${incidentId}/timeline`, {
     params: { page, page_size },
   })
+}
+
+export function getIncidentRca(incidentId: number) {
+  return apiGet<RcaResult | null>(http, `/api/v1/incidents/${incidentId}/rca`)
+}
+
+export function triggerIncidentRca(incidentId: number, force = false) {
+  return apiPost<RcaResult>(http, `/api/v1/incidents/${incidentId}/rca`, { force })
+}
+
+export function submitIncidentFeedback(incidentId: number, body: IncidentFeedbackRequest) {
+  return apiPost<IncidentFeedback>(http, `/api/v1/incidents/${incidentId}/feedback`, body)
 }

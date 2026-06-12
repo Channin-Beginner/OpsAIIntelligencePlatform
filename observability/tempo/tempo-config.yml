@@ -1,0 +1,28 @@
+# OpsAI 阶段三 3.A — Grafana Tempo 3.x 单进程模式（target=all）
+# OTLP 监听 4319/4320，避免与 OTel Collector 入站 4317/4318 冲突
+
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+  log_level: info
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 127.0.0.1:4319
+        http:
+          endpoint: 127.0.0.1:4320
+
+storage:
+  trace:
+    backend: local
+    wal:
+      path: D:/YIBANWENJIANJI/BIANCHENG/OperationalTools/PrometheusStack/data/tempo/wal
+    local:
+      path: D:/YIBANWENJIANJI/BIANCHENG/OperationalTools/PrometheusStack/data/tempo/blocks
+
+usage_report:
+  reporting_enabled: false

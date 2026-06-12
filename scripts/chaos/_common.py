@@ -6,6 +6,7 @@ import json
 import sys
 import time
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -118,6 +119,32 @@ def wait_with_countdown(seconds: int, label: str) -> None:
         time.sleep(1)
 
 
+def verify_portal_chaos_returns_5xx(portal_url: str, *, attempts: int = 5) -> bool:
+    """确认 Portal 进程已读到共享 chaos flag（Admin/Portal 为独立进程）。"""
+    for attempt in range(1, attempts + 1):
+        try:
+            status, _ = http_json("GET", portal_url, timeout=5.0)
+        except RuntimeError as exc:
+            log(str(exc))
+            return False
+        if status == 500:
+            log(f"Portal chaos 已生效: GET {portal_url} -> 500")
+            return True
+        log(f"Portal 仍返回 {status}（第 {attempt}/{attempts} 次），Admin flag 可能未同步到 Portal")
+        time.sleep(1)
+    log("Portal 未返回 5xx：请重启 EcomAI Admin 与 Portal 后重试 inject_portal_500.py")
+    return False
+
+
+def portal_chaos_still_injecting(portal_url: str) -> bool:
+    """Portal /chaos/error 仍返回 500 表示 chaos flag 仍开启。"""
+    try:
+        status, _ = http_json("GET", portal_url, timeout=5.0)
+    except RuntimeError:
+        return True
+    return status == 500
+
+
 def hammer_http(
     url: str,
     *,
@@ -125,6 +152,7 @@ def hammer_http(
     duration: int,
     headers: dict[str, str] | None = None,
     label: str | None = None,
+    should_continue: Callable[[], bool] | None = None,
 ) -> None:
     """Concurrent GET traffic until duration elapses (metrics need sustained load)."""
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -148,6 +176,9 @@ def hammer_http(
     deadline = time.time() + duration
     round_no = 0
     while time.time() < deadline:
+        if should_continue is not None and not should_continue():
+            log("检测到 chaos 已关闭（如 Runbook 或 --disable），提前结束压测")
+            return
         round_no += 1
         if round_no == 1 or round_no % 5 == 0:
             log(f"压测轮次 #{round_no}，剩余约 {max(0, int(deadline - time.time()))}s")

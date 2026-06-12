@@ -20,6 +20,8 @@ import {
   submitIncidentFeedback,
   triggerIncidentRca,
 } from '@/api/incidents'
+import { getRunbook, listRunbookExecutions, startRunbookExecution } from '@/api/runbooks'
+import type { Runbook, RunbookExecution } from '@opsai/shared'
 
 const route = useRoute()
 const router = useRouter()
@@ -32,6 +34,11 @@ const timeline = ref<TimelineEvent[]>([])
 const rcaResult = ref<RcaResult | null>(null)
 const feedbackScore = ref(4)
 const feedbackComment = ref('')
+const loadedRunbook = ref<Runbook | null>(null)
+const runbookLoading = ref(false)
+const executeLoading = ref(false)
+const runbookExecutions = ref<RunbookExecution[]>([])
+const suggestedRunbooks = ref<Runbook[]>([])
 
 const incidentId = computed(() => Number(route.params.id))
 
@@ -60,6 +67,83 @@ function evidenceTagType(type: RcaEvidenceItem['type']) {
   return map[type] || ''
 }
 
+async function fetchSuggestedRunbooks(ids: number[]) {
+  if (!ids.length) {
+    suggestedRunbooks.value = []
+    return
+  }
+  const books: Runbook[] = []
+  for (const id of ids) {
+    try {
+      books.push(await getRunbook(id))
+    } catch {
+      /* skip missing */
+    }
+  }
+  suggestedRunbooks.value = books
+}
+
+async function fetchRunbookExecutions() {
+  try {
+    const data = await listRunbookExecutions(incidentId.value)
+    runbookExecutions.value = data.items
+  } catch {
+    runbookExecutions.value = []
+  }
+}
+
+async function loadRunbook(runbook: Runbook) {
+  runbookLoading.value = true
+  try {
+    loadedRunbook.value = await getRunbook(runbook.id)
+    ElMessage.success(`已加载 Runbook：${loadedRunbook.value.title}`)
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '加载 Runbook 失败')
+  } finally {
+    runbookLoading.value = false
+  }
+}
+
+async function executeLoadedRunbook() {
+  if (!loadedRunbook.value) return
+  try {
+    const hasManualStep = loadedRunbook.value.steps.some((s) => s.action_type === 'manual')
+    await ElMessageBox.confirm(
+      `确认半自动执行「${loadedRunbook.value.title}」？\n` +
+        '将自动调用本机 EcomAI Admin chaos API（关闭 feature flag 等）。' +
+        (hasManualStep
+          ? '\n\n注意：含人工步骤，不会自动结束终端里的 inject_portal_500.py；执行后请 Ctrl+C 停脚本，或等待脚本检测到 flag 关闭后自行退出。'
+          : ''),
+      'Runbook 执行确认',
+      { type: 'warning', confirmButtonText: '确认执行', cancelButtonText: '取消' },
+    )
+    executeLoading.value = true
+    const result = await startRunbookExecution(incidentId.value, {
+      runbook_id: loadedRunbook.value.id,
+      rca_result_id: rcaResult.value?.id,
+      confirmed: true,
+    })
+    if (result.status === 'completed') {
+      const manualPending = result.step_results?.some((s) => s.action_type === 'manual')
+      ElMessage.success({
+        message: manualPending
+          ? 'HTTP 步骤已完成；请停止终端中的 inject_portal_500.py（或等待其自动退出）'
+          : 'Runbook 执行完成',
+        duration: manualPending ? 8000 : 3000,
+      })
+    } else {
+      ElMessage.warning('Runbook 执行结束（含失败步骤）')
+    }
+    await fetchDetail()
+    await fetchRunbookExecutions()
+  } catch (e) {
+    if (e === 'cancel') return
+    ElMessage.error(e instanceof Error ? e.message : '执行失败')
+  } finally {
+    executeLoading.value = false
+  }
+}
+
 async function fetchDetail() {
   loading.value = true
   try {
@@ -71,6 +155,8 @@ async function fetchDetail() {
     incident.value = detail
     timeline.value = timelineData.items
     rcaResult.value = rca
+    await fetchSuggestedRunbooks(rca?.suggested_runbook_ids || [])
+    await fetchRunbookExecutions()
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载详情失败')
     router.push('/incidents')
@@ -105,6 +191,23 @@ async function addNote() {
   await runAction('add_note' as IncidentAction, '添加备注')
 }
 
+async function sleep(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function pollRcaResult(maxAttempts = 20, intervalMs = 3000) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const rca = await getIncidentRca(incidentId.value)
+    if (rca?.status === 'completed') {
+      return rca
+    }
+    if (attempt < maxAttempts - 1) {
+      await sleep(intervalMs)
+    }
+  }
+  return null
+}
+
 async function runRca() {
   rcaLoading.value = true
   try {
@@ -112,7 +215,19 @@ async function runRca() {
     ElMessage.success('RCA 分析完成')
     await fetchDetail()
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : 'RCA 失败')
+    const message = e instanceof Error ? e.message : 'RCA 失败'
+    const timedOut = /timeout/i.test(message)
+    if (timedOut) {
+      ElMessage.warning('分析仍在进行，正在同步结果…')
+      const polled = await pollRcaResult()
+      if (polled) {
+        rcaResult.value = polled
+        ElMessage.success('RCA 分析已完成（后台已生成结果）')
+        await fetchDetail()
+        return
+      }
+    }
+    ElMessage.error(message)
   } finally {
     rcaLoading.value = false
   }
@@ -288,6 +403,74 @@ onMounted(fetchDetail)
         </el-card>
 
         <el-card shadow="never" class="section-card">
+          <template #header>
+            <div class="rca-header">
+              <span>Runbook 半自动处置</span>
+              <el-tag v-if="loadedRunbook" size="small" type="success">
+                已加载：{{ loadedRunbook.title }}
+              </el-tag>
+            </div>
+          </template>
+
+          <div v-if="suggestedRunbooks.length" class="runbook-suggest">
+            <h4 class="evidence-title">RCA 推荐 Runbook</h4>
+            <div class="runbook-chips">
+              <el-button
+                v-for="rb in suggestedRunbooks"
+                :key="rb.id"
+                size="small"
+                :loading="runbookLoading"
+                @click="loadRunbook(rb)"
+              >
+                一键加载 · {{ rb.title }}
+              </el-button>
+            </div>
+          </div>
+          <el-empty
+            v-else-if="rcaResult"
+            description="暂无推荐 Runbook（可先在管理台发布手册）"
+            :image-size="56"
+          />
+
+          <div v-if="loadedRunbook" class="runbook-loaded">
+            <el-descriptions :column="1" border size="small" class="runbook-meta">
+              <el-descriptions-item label="风险">
+                {{ loadedRunbook.risk_level }}
+              </el-descriptions-item>
+              <el-descriptions-item label="描述">
+                {{ loadedRunbook.description || '—' }}
+              </el-descriptions-item>
+            </el-descriptions>
+
+            <ol class="runbook-steps">
+              <li v-for="step in loadedRunbook.steps" :key="step.order">
+                <strong>{{ step.title }}</strong>
+                <span class="step-type">（{{ step.action_type }}）</span>
+                <p v-if="step.description" class="step-desc">{{ step.description }}</p>
+              </li>
+            </ol>
+
+            <el-button type="warning" :loading="executeLoading" @click="executeLoadedRunbook">
+              确认并执行 Runbook
+            </el-button>
+          </div>
+
+          <div v-if="runbookExecutions.length" class="runbook-history">
+            <h4 class="evidence-title">执行记录</h4>
+            <el-table :data="runbookExecutions" size="small" border>
+              <el-table-column prop="runbook_title" label="Runbook" min-width="140" />
+              <el-table-column prop="status" label="状态" width="90" />
+              <el-table-column prop="completed_at" label="完成时间" width="170" />
+              <el-table-column label="步骤" min-width="120">
+                <template #default="{ row }">
+                  {{ row.step_results?.length || 0 }} 步
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-card>
+
+        <el-card shadow="never" class="section-card">
           <template #header>关联告警 ({{ incident.related_alerts.length }})</template>
           <el-table :data="incident.related_alerts" size="small" border>
             <el-table-column prop="fingerprint" label="Fingerprint" min-width="140" />
@@ -434,5 +617,44 @@ onMounted(fetchDetail)
   margin-top: 10px;
   display: flex;
   gap: 8px;
+}
+
+.runbook-suggest {
+  margin-bottom: 12px;
+}
+
+.runbook-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.runbook-loaded {
+  margin-top: 12px;
+}
+
+.runbook-meta {
+  margin-bottom: 12px;
+}
+
+.runbook-steps {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  font-size: 13px;
+}
+
+.step-type {
+  color: #909399;
+  margin-left: 4px;
+}
+
+.step-desc {
+  margin: 4px 0 0;
+  color: #606266;
+  font-size: 12px;
+}
+
+.runbook-history {
+  margin-top: 16px;
 }
 </style>

@@ -7,7 +7,7 @@ info:
     - 响应统一包装为 CommonResult（对齐 EcomAI）
     - 阶段一范围：Health、Auth、Alertmanager Webhook、Alert 列表、Incident CRUD、Timeline
     - 认证：JWT Bearer（`POST /api/v1/auth/login`）；Webhook 端点无需认证
-  version: 0.3.0-phase3-rca
+  version: 1.0.0-mvp
   contact:
     name: OpsAI Team
 
@@ -30,6 +30,8 @@ tags:
     description: Incident 审计时间线
   - name: RCA
     description: DeepSeek 根因分析 Agent（阶段三）
+  - name: Runbooks
+    description: Runbook CRUD 与半自动执行（阶段四）
 
 paths:
   /health:
@@ -430,6 +432,76 @@ paths:
           $ref: '#/components/responses/NotFound'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/runbooks:
+    get:
+      tags: [Runbooks]
+      summary: Runbook 列表
+      operationId: listRunbooks
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, published]
+        - name: published_only
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: 分页列表
+    post:
+      tags: [Runbooks]
+      summary: 创建 Runbook 草稿（admin）
+      operationId: createRunbook
+      security:
+        - bearerAuth: []
+
+  /api/v1/runbooks/stats/adoption:
+    get:
+      tags: [Runbooks]
+      summary: Runbook 采纳率统计
+      operationId: getRunbookAdoptionStats
+      security:
+        - bearerAuth: []
+
+  /api/v1/runbooks/{runbook_id}/publish:
+    post:
+      tags: [Runbooks]
+      summary: 发布 Runbook
+      operationId: publishRunbook
+      security:
+        - bearerAuth: []
+
+  /api/v1/incidents/{incident_id}/runbook-executions:
+    get:
+      tags: [Runbooks]
+      summary: Incident Runbook 执行记录
+      operationId: listRunbookExecutions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IncidentId'
+    post:
+      tags: [Runbooks]
+      summary: 半自动执行 Runbook（需 confirmed=true）
+      operationId: startRunbookExecution
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IncidentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunbookExecutionStartRequest'
 
 components:
   securitySchemes:
@@ -1188,3 +1260,18 @@ components:
           type: string
         data:
           $ref: '#/components/schemas/IncidentFeedback'
+
+    RunbookExecutionStartRequest:
+      type: object
+      required: [runbook_id, confirmed]
+      properties:
+        runbook_id:
+          type: integer
+          format: int64
+        rca_result_id:
+          type: integer
+          format: int64
+          nullable: true
+        confirmed:
+          type: boolean
+          description: 半自动处置需人工确认为 true

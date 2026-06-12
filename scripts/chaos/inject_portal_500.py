@@ -18,7 +18,13 @@ SCRIPTS_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS_ROOT))
 
 from _config import ScriptConfig
-from chaos._common import hammer_http, log, try_chaos_api
+from chaos._common import (
+    hammer_http,
+    log,
+    portal_chaos_still_injecting,
+    try_chaos_api,
+    verify_portal_chaos_returns_5xx,
+)
 
 DEFAULT_CHAOS_ROUTE = "/chaos/error"
 
@@ -49,12 +55,19 @@ def main() -> int:
             log("回退：直接 hammer Portal（若无 flag 则不会 5xx）")
         elif args.disable:
             return 0
+        if enable and not verify_portal_chaos_returns_5xx(portal_url):
+            return 1
 
     if args.disable:
         log("--disable 仅对 chaos API 有效")
         return 0
 
-    hammer_http(portal_url, workers=args.workers, duration=args.duration)
+    hammer_http(
+        portal_url,
+        workers=args.workers,
+        duration=args.duration,
+        should_continue=lambda: portal_chaos_still_injecting(portal_url),
+    )
 
     if not args.force_hammer:
         try_chaos_api(

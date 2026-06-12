@@ -3,7 +3,8 @@ import { computed } from 'vue'
 import { ElMessage } from 'element-plus'
 
 const apiBase = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8280'
-const webhookUrl = computed(() => `${apiBase}/webhooks/alertmanager`)
+const alertmanagerWebhookUrl = computed(() => `${apiBase}/webhooks/alertmanager`)
+const grafanaWebhookUrl = computed(() => `${apiBase}/webhooks/grafana`)
 
 const alertmanagerSnippet = `route:
   receiver: opsai-webhook
@@ -15,7 +16,7 @@ const alertmanagerSnippet = `route:
 receivers:
   - name: opsai-webhook
     webhook_configs:
-      - url: '${webhookUrl.value}'
+      - url: '${alertmanagerWebhookUrl.value}'
         send_resolved: true`
 
 const postmanSample = `{
@@ -49,10 +50,17 @@ function copyText(text: string) {
     <el-col :span="12">
       <el-card shadow="never">
         <template #header>Webhook 接入地址</template>
-        <p class="desc">Alertmanager 将告警 POST 到以下 URL（阶段二实装后生效）：</p>
-        <el-input :model-value="webhookUrl" readonly>
+        <p class="desc">Alertmanager（架构一期）与 Grafana Unified Alerting（架构三期）Webhook：</p>
+        <p class="label">Alertmanager</p>
+        <el-input :model-value="alertmanagerWebhookUrl" readonly>
           <template #append>
-            <el-button @click="copyText(webhookUrl)">复制</el-button>
+            <el-button @click="copyText(alertmanagerWebhookUrl)">复制</el-button>
+          </template>
+        </el-input>
+        <p class="label mt-16">Grafana Unified Alerting</p>
+        <el-input :model-value="grafanaWebhookUrl" readonly>
+          <template #append>
+            <el-button @click="copyText(grafanaWebhookUrl)">复制</el-button>
           </template>
         </el-input>
         <el-alert
@@ -89,6 +97,12 @@ function copyText(text: string) {
 </template>
 
 <style scoped>
+.label {
+  font-size: 13px;
+  color: #909399;
+  margin: 0 0 6px;
+}
+
 .desc {
   color: #606266;
   font-size: 14px;

@@ -16,6 +16,7 @@ from app.agent.rca.types import evidence_item
 from app.config import get_settings
 from app.models.alert_event import AlertEvent
 from app.models.incident import Incident
+from app.runbook.recommend import match_runbook_ids, runbooks_for_llm_context
 
 _SYSTEM_PROMPT = """你是企业级 AIOps RCA（根因分析）专家。根据 Incident 信息与已收集的证据链，输出严格 JSON：
 {
@@ -28,7 +29,7 @@ _SYSTEM_PROMPT = """你是企业级 AIOps RCA（根因分析）专家。根据 I
 规则：
 1. 结论必须引用 evidence 中的 metric/log/trace/kb，不可编造未提供的观测。
 2. confidence 反映证据充分程度；证据不足时降低并说明不确定性。
-3. suggested_runbook_ids 暂无手册库时保持空数组。
+3. suggested_runbook_ids 必须从 available_runbooks 中选择匹配的 id，无合适则空数组。
 4. 只输出 JSON，不要 markdown。"""
 
 _ALERT_METRIC_QUERIES: dict[str, list[str]] = {
@@ -150,8 +151,11 @@ def gather_evidence(
 
 
 def _fallback_analysis(
+    db: Session,
     incident: Incident,
     evidence: list[dict[str, Any]],
+    *,
+    alertname: str | None = None,
 ) -> dict[str, Any]:
     """无 LLM Key 或调用失败时的规则降级。"""
     kb_hits = [
@@ -186,6 +190,12 @@ def _fallback_analysis(
         confidence += 0.1
     confidence = min(confidence, 0.85)
 
+    runbook_ids = match_runbook_ids(
+        db,
+        service=incident.service,
+        alertname=alertname,
+    )
+
     return {
         "hypothesis": hypothesis,
         "confidence": round(confidence, 2),
@@ -194,7 +204,7 @@ def _fallback_analysis(
             "查看 EcomAI 应用日志定位异常路由或下游超时",
             "确认相关混沌注入脚本是否仍在运行",
         ],
-        "suggested_runbook_ids": [],
+        "suggested_runbook_ids": runbook_ids,
         "evidence_refs": [{"index": i, "reason": "自动收集"} for i in range(len(evidence))],
         "model_name": "rule-based-fallback",
     }
@@ -204,6 +214,7 @@ def _build_user_prompt(
     incident: Incident,
     primary_alert: AlertEvent | None,
     evidence: list[dict[str, Any]],
+    available_runbooks: list[dict[str, Any]],
 ) -> str:
     alert_block: dict[str, Any] = {}
     if primary_alert:
@@ -226,6 +237,7 @@ def _build_user_prompt(
         },
         "primary_alert": alert_block,
         "evidence": evidence,
+        "available_runbooks": available_runbooks,
     }
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
@@ -241,20 +253,27 @@ def analyze_incident(
     """
     evidence = gather_evidence(db, incident, primary_alert=primary_alert)
     settings = get_settings()
+    alertname = primary_alert.alertname if primary_alert else None
+    available_runbooks = runbooks_for_llm_context(db)
+    rule_runbook_ids = match_runbook_ids(
+        db,
+        service=incident.service,
+        alertname=alertname,
+    )
 
     if not settings.llm_api_key.strip():
-        result = _fallback_analysis(incident, evidence)
+        result = _fallback_analysis(db, incident, evidence, alertname=alertname)
         result["evidence"] = evidence
         return result
 
-    user_prompt = _build_user_prompt(incident, primary_alert, evidence)
+    user_prompt = _build_user_prompt(incident, primary_alert, evidence, available_runbooks)
     try:
         parsed, model_name = chat_json(
             system_prompt=_SYSTEM_PROMPT,
             user_prompt=user_prompt,
         )
     except Exception:
-        result = _fallback_analysis(incident, evidence)
+        result = _fallback_analysis(db, incident, evidence, alertname=alertname)
         result["evidence"] = evidence
         result["llm_error"] = True
         return result
@@ -273,6 +292,9 @@ def analyze_incident(
     runbook_ids = parsed.get("suggested_runbook_ids") or []
     if not isinstance(runbook_ids, list):
         runbook_ids = []
+    runbook_ids = [int(x) for x in runbook_ids if str(x).isdigit()]
+    if not runbook_ids and rule_runbook_ids:
+        runbook_ids = rule_runbook_ids
 
     return {
         "hypothesis": str(parsed.get("hypothesis") or "未能生成根因假设"),

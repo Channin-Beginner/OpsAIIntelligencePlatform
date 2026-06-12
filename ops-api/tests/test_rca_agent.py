@@ -61,13 +61,19 @@ def test_gather_evidence_includes_four_pillars(
     assert mock_metrics.call_count >= 1
 
 
+@patch("app.agent.rca.rca_agent.match_runbook_ids")
+@patch("app.agent.rca.rca_agent.runbooks_for_llm_context")
 @patch("app.agent.rca.rca_agent.chat_json")
 @patch("app.agent.rca.rca_agent.gather_evidence")
 @patch("app.agent.rca.rca_agent.get_settings")
-def test_analyze_incident_with_llm(mock_settings, mock_gather, mock_chat):
+def test_analyze_incident_with_llm(
+    mock_settings, mock_gather, mock_chat, mock_runbooks_ctx, mock_match
+):
     settings = MagicMock()
     settings.llm_api_key = "test-key"
     mock_settings.return_value = settings
+    mock_runbooks_ctx.return_value = [{"id": 1, "title": "Portal 500"}]
+    mock_match.return_value = [1]
 
     mock_gather.return_value = [
         {"type": "metric", "source": "prometheus", "summary": "error high"},
@@ -90,12 +96,18 @@ def test_analyze_incident_with_llm(mock_settings, mock_gather, mock_chat):
     assert result["evidence"]
 
 
+@patch("app.agent.rca.rca_agent.match_runbook_ids")
+@patch("app.agent.rca.rca_agent.runbooks_for_llm_context")
 @patch("app.agent.rca.rca_agent.gather_evidence")
 @patch("app.agent.rca.rca_agent.get_settings")
-def test_analyze_incident_fallback_without_api_key(mock_settings, mock_gather):
+def test_analyze_incident_fallback_without_api_key(
+    mock_settings, mock_gather, mock_runbooks_ctx, mock_match
+):
     settings = MagicMock()
     settings.llm_api_key = ""
     mock_settings.return_value = settings
+    mock_runbooks_ctx.return_value = []
+    mock_match.return_value = [1]
 
     mock_gather.return_value = [
         {"type": "kb", "source": "incident_rag", "summary": "2 条相似历史 Incident"},

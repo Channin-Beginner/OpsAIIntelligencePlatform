@@ -14,7 +14,13 @@ const router = createRouter({
       path: '/',
       component: () => import('@/layouts/OpsLayout.vue'),
       children: [
-        { path: '', redirect: '/incidents' },
+        { path: '', redirect: '/dashboard' },
+        {
+          path: 'dashboard',
+          name: 'dashboard',
+          component: () => import('@/views/DashboardView.vue'),
+          meta: { title: '运维大屏' },
+        },
         {
           path: 'alerts',
           name: 'alerts',

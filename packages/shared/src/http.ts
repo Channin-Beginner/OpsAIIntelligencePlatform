@@ -88,3 +88,11 @@ export async function apiPatch<T>(
   const { data } = await client.patch<CommonResult<T>>(url, body, config)
   return data.data
 }
+
+export async function apiDelete(
+  client: AxiosInstance,
+  url: string,
+  config?: AxiosRequestConfig,
+): Promise<void> {
+  await client.delete(url, config)
+}

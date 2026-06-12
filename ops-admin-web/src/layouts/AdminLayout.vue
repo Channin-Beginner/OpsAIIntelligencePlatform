@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Connection, Setting, User } from '@element-plus/icons-vue'
+import { Collection, Connection, Document, Setting, User } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
@@ -31,6 +31,14 @@ function handleLogout() {
         <el-menu-item index="/admin/integration">
           <el-icon><Connection /></el-icon>
           <span>接入配置</span>
+        </el-menu-item>
+        <el-menu-item index="/admin/kb">
+          <el-icon><Collection /></el-icon>
+          <span>知识库</span>
+        </el-menu-item>
+        <el-menu-item index="/admin/runbooks">
+          <el-icon><Document /></el-icon>
+          <span>Runbook 管理</span>
         </el-menu-item>
       </el-menu>
     </el-aside>

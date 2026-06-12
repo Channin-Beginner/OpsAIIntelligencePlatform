@@ -168,3 +168,49 @@ class UserSummarySchema(BaseModel):
     is_active: bool
     created_at: str
     updated_at: str
+
+
+class RcaEvidenceItem(BaseModel):
+    type: str
+    source: str
+    summary: str
+    query: str | None = None
+    detail: dict[str, Any] | list[Any] | None = None
+
+
+class RcaResultSchema(BaseModel):
+    id: int
+    incident_id: int
+    status: str
+    hypothesis: str | None = None
+    confidence: float | None = None
+    evidence: list[RcaEvidenceItem | dict[str, Any]] = Field(default_factory=list)
+    suggested_runbook_ids: list[int] = Field(default_factory=list)
+    suggested_actions: list[str] = Field(default_factory=list)
+    model_name: str | None = None
+    error_message: str | None = None
+    created_at: str
+    completed_at: str | None = None
+
+
+class RcaTriggerRequest(BaseModel):
+    force: bool = False
+
+
+class IncidentFeedbackRequest(BaseModel):
+    score: int = Field(ge=1, le=5)
+    verdict: str
+    comment: str | None = Field(default=None, max_length=2000)
+    rca_result_id: int | None = None
+
+
+class IncidentFeedbackSchema(BaseModel):
+    id: int
+    incident_id: int
+    rca_result_id: int | None = None
+    user_id: int | None = None
+    user_name: str | None = None
+    score: int
+    verdict: str
+    comment: str | None = None
+    created_at: str

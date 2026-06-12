@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
+from app.agent.rca.service import get_latest_rca_result, submit_feedback, trigger_rca
 from app.common.deps import get_current_user
 from app.common.response import success
 from app.database import get_db
@@ -16,7 +17,13 @@ from app.incidents.service import (
     patch_incident,
 )
 from app.models.sys_user import SysUser
-from app.schemas.common import IncidentCreateRequest, IncidentPatchRequest, TimelineCreateRequest
+from app.schemas.common import (
+    IncidentCreateRequest,
+    IncidentFeedbackRequest,
+    IncidentPatchRequest,
+    RcaTriggerRequest,
+    TimelineCreateRequest,
+)
 
 router = APIRouter(prefix="/api/v1/incidents", tags=["Incidents"])
 
@@ -78,6 +85,45 @@ def patch_incident_endpoint(
 ):
     incident = patch_incident(db, incident_id, body, actor_id=current_user.id)
     return success(data=incident.model_dump())
+
+
+@router.get("/{incident_id}/rca")
+def get_incident_rca(
+    incident_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[SysUser, Depends(get_current_user)],
+):
+    result = get_latest_rca_result(db, incident_id)
+    return success(data=result.model_dump() if result else None)
+
+
+@router.post("/{incident_id}/rca", status_code=status.HTTP_201_CREATED)
+def post_incident_rca(
+    incident_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[SysUser, Depends(get_current_user)],
+    body: RcaTriggerRequest | None = None,
+):
+    payload = body or RcaTriggerRequest()
+    result = trigger_rca(db, incident_id, payload, actor_id=current_user.id)
+    return JSONResponse(
+        status_code=status.HTTP_201_CREATED,
+        content=success(data=result.model_dump()),
+    )
+
+
+@router.post("/{incident_id}/feedback", status_code=status.HTTP_201_CREATED)
+def post_incident_feedback(
+    incident_id: int,
+    body: IncidentFeedbackRequest,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[SysUser, Depends(get_current_user)],
+):
+    feedback = submit_feedback(db, incident_id, body, actor_id=current_user.id)
+    return JSONResponse(
+        status_code=status.HTTP_201_CREATED,
+        content=success(data=feedback.model_dump()),
+    )
 
 
 timeline_router = APIRouter(prefix="/api/v1/incidents/{incident_id}/timeline", tags=["Timeline"])

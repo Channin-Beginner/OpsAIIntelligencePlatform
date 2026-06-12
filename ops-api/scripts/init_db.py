@@ -18,7 +18,9 @@ DDL_FILES = [
     "03_incident.sql",
     "04_incident_timeline.sql",
     "05_incident_alert_rel.sql",
+    "06_kb_article.sql",
     "99_seed_users.sql",
+    "98_seed_kb_articles.sql",
 ]
 
 

@@ -1,4 +1,4 @@
-# OpsAI 本地开发指南（阶段一）
+# OpsAI 本地开发指南
 
 ## 端口一览
 
@@ -83,7 +83,7 @@ npm run dev
 
 访问：http://127.0.0.1:8290
 
-### 5. 可观测栈（阶段二 2.A）
+### 5. 可观测栈
 
 **前置**：EcomAI `ecom-api` 已按 `docs/ecomai_metrics_integration.md` 暴露 `/metrics`。
 
@@ -113,7 +113,7 @@ npm run dev
 | admin | OpsAI@2025 | 管理员 | 运维台 + 管理台 |
 | operator | OpsAI@2025 | 运维工程师 | 仅运维台 |
 
-## Postman 模拟告警（阶段一验收）
+## Postman 模拟告警
 
 **URL**：`POST http://127.0.0.1:8280/webhooks/alertmanager`  
 **Headers**：`Content-Type: application/json`  
@@ -164,7 +164,7 @@ cd ops-api
 VITE_API_BASE=http://127.0.0.1:8280
 ```
 
-## 混沌工程与造数（阶段二 2.C）
+## 混沌工程与造数
 
 **前置**：EcomAI + 可观测栈 + ops-api 均已启动。场景说明见 `docs/chaos_scenarios.md`。
 

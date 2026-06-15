@@ -54,7 +54,7 @@ copy .env.example .env
 pip install -r requirements.txt
 python run.py
 
-快键命令（已在 `ops-api` 目录时）：`python run.py`
+快键命令：cd ops-api;python run.py
 ```
 
 验证：`GET http://127.0.0.1:8280/health`

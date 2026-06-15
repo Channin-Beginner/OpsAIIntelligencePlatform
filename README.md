@@ -71,6 +71,19 @@ npm run dev
 
 访问：http://127.0.0.1:8295
 
+**运维大屏**
+![运维台图片](static/ops01.png)
+
+**告警列表：**
+![运维台图片](static/ops02.png)
+
+**故障列表：**
+![运维台图片](static/ops03.png)
+
+**故障详情：**
+![运维台图片](static/ops04.png)
+
+
 ### 4. 管理台 ops-admin-web
 
 ```bash
@@ -82,6 +95,16 @@ npm run dev
 ```
 
 访问：http://127.0.0.1:8290
+
+**用户管理：**
+![管理台图片](static/admin.png)
+
+**知识库：**
+![管理台图片](static/admin02.png)
+
+**Runbook 管理：**
+![管理台图片](static/admin03.png)
+
 
 ### 5. 可观测栈
 
